@@ -7,7 +7,7 @@ from diffusers import StableDiffusionPipeline
 import torch
 from gtts import gTTS
 from moviepy.editor import *
-from moviepy.audio.fx.all import audio_fadein, audio_fadeout
+from moviepy.video.fx.all import resize
 
 OUTPUT_FOLDER = "generated_ghibli_videos"
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
@@ -17,7 +17,7 @@ if HF_TOKEN:
     os.environ["HF_TOKEN"] = HF_TOKEN
     print("✅ HF_TOKEN loaded")
 
-print("🚀 Starting Ghibli Video with Authentic Sound Design...")
+print("🚀 Starting Ultra High-Quality Ghibli Video with Advanced Transitions...")
 
 # ====================== MODELS ======================
 story_generator = pipeline(
@@ -41,9 +41,9 @@ print("✅ Models loaded!")
 # ====================== FUNCTIONS ======================
 def generate_story():
     moral = random.choice(["kindness", "honesty", "friendship", "courage", "sharing", "patience", "gratitude"])
-    print(f"📖 Generating emotional Ghibli story about {moral.upper()}...")
+    print(f"📖 Generating emotional story about {moral.upper()}...")
 
-    prompt = f"""You are Hayao Miyazaki. Write a warm, magical, and emotional Studio Ghibli-style moral story for children 4-8 years old about "{moral}".
+    prompt = f"""You are Hayao Miyazaki. Write a touching, magical Studio Ghibli-style moral story for children 4-8 years old about "{moral}".
 
 Return ONLY valid JSON with 8 scenes.
 Each scene: "scene_number", "visual_description" (start with "ghibli style,"), "narration_text" (22-30 words)."""
@@ -62,7 +62,7 @@ Each scene: "scene_number", "visual_description" (start with "ghibli style,"), "
                  "narration_text": f"A gentle child discovered the true beauty of {moral}."} for i in range(8)], moral
 
 def generate_image(desc, num):
-    print(f"🖼️  Generating Ghibli image {num}...")
+    print(f"🖼️  Generating high-quality Ghibli image {num}...")
     image = pipe(
         f"{desc}, masterpiece, best quality, intricate details, soft cinematic lighting, whimsical atmosphere",
         num_inference_steps=45,
@@ -80,8 +80,7 @@ def text_to_speech(text, num):
     return path
 
 def create_video(scenes, moral):
-    print("🎬 Creating Ghibli video with advanced sound design & transitions...")
-
+    print("🎬 Creating video with advanced cinematic transitions...")
     clips = []
     subs = []
     current_time = 0.0
@@ -91,36 +90,39 @@ def create_video(scenes, moral):
         audio_path = os.path.join(OUTPUT_FOLDER, f"narration_{int(scene['scene_number']):02d}.mp3")
 
         image_clip = ImageClip(img_path)
-        narration_audio = AudioFileClip(audio_path)
-        duration = narration_audio.duration + 1.4
+        audio_clip = AudioFileClip(audio_path)
+        duration = audio_clip.duration + 1.3
 
-        # Base visual clip
-        clip = image_clip.set_duration(duration).set_audio(narration_audio)
+        # Base clip
+        clip = image_clip.set_duration(duration).set_audio(audio_clip)
 
-        # Advanced Cinematic Transitions
+        # Advanced Cinematic Transitions (Fixed Resize)
         if i == 0:
+            # First scene: Slow fade in + gentle zoom
             clip = clip.crossfadein(2.0)
-            clip = clip.resize(lambda t: 1 + 0.012 * t)   # Gentle zoom in
+            clip = resize(clip, lambda t: 1 + 0.012 * t)   # Gentle zoom in
         elif i == len(scenes) - 1:
+            # Last scene: Slow fade out
             clip = clip.crossfadeout(2.0)
         else:
-            clip = clip.resize(lambda t: 1 + 0.018 * (t % 3))   # Soft breathing zoom
+            # Middle scenes: Soft breathing zoom + dissolve
+            clip = resize(clip, lambda t: 1 + 0.018 * (t % 3))
             clip = clip.crossfadein(1.3).crossfadeout(1.3)
 
         clips.append(clip)
 
-        # Refined Ghibli-style Subtitles
+        # Refined Subtitles
         subtitle = TextClip(
             scene["narration_text"],
             fontsize=52,
-            color='#F8F1E9',           # Soft warm white (Ghibli feel)
-            stroke_color='#2C2C2C',
+            color='#F8F1E9',
+            stroke_color='#1a1a1a',
             stroke_width=4.5,
             font='Arial-Bold',
             size=(1100, None),
             align='center',
             method='caption',
-            kerning=1.4
+            kerning=1.3
         )
         subtitle = subtitle.set_position(('center', 0.79 * subtitle.h)).set_start(current_time).set_duration(duration)
         subs.append(subtitle)
@@ -130,17 +132,8 @@ def create_video(scenes, moral):
     final_video = concatenate_videoclips(clips, method="compose")
     final_video = CompositeVideoClip([final_video] + subs)
 
-    # ====================== GHIBLI SOUND DESIGN ======================
-    print("🎵 Adding Ghibli-style sound design...")
-
-    # Soft background ambient music (you can replace with your own later)
-    # For now, we add gentle fade and low-volume nature feel using narration + subtle effects
-
-    # Add soft audio fade in/out to the whole video
-    final_video = final_video.audio_fadein(3.0).audio_fadeout(3.0)
-
     timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-    output_path = os.path.join(OUTPUT_FOLDER, f"ghibli_sounddesign_{moral}_{timestamp}.mp4")
+    output_path = os.path.join(OUTPUT_FOLDER, f"ghibli_cinematic_{moral}_{timestamp}.mp4")
 
     final_video.write_videofile(
         output_path, 
@@ -152,7 +145,7 @@ def create_video(scenes, moral):
         bitrate="8000k"
     )
 
-    print(f"\n✅ GHIBLI VIDEO WITH SOUND DESIGN GENERATED: {output_path}")
+    print(f"\n✅ CINEMATIC HIGH-QUALITY VIDEO GENERATED: {output_path}")
 
 # ====================== MAIN ======================
 if __name__ == "__main__":
@@ -166,4 +159,4 @@ if __name__ == "__main__":
 
     create_video(scenes, moral)
 
-    print("🎉 All done! Your Ghibli video is ready.")
+    print("🎉 All done!")
