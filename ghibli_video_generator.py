@@ -8,20 +8,18 @@ import torch
 from gtts import gTTS
 from moviepy.editor import *
 
-# ====================== CONFIG ======================
 OUTPUT_FOLDER = "generated_ghibli_videos"
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
 HF_TOKEN = os.getenv("HF_TOKEN")
 if HF_TOKEN:
     os.environ["HF_TOKEN"] = HF_TOKEN
-    print("✅ HF_TOKEN loaded from GitHub Secrets")
+    print("✅ HF_TOKEN loaded")
 
-print(f"Running on GitHub Hosted Runner")
+print("Running on GitHub Hosted Runner")
 
-# ====================== LOAD MODELS ======================
-print("🚀 Loading AI models...")
-
+# Load models
+print("🚀 Loading models...")
 story_generator = pipeline(
     "text-generation",
     model="Qwen/Qwen2.5-1.5B-Instruct",
@@ -38,16 +36,15 @@ pipe = StableDiffusionPipeline.from_pretrained(
 pipe = pipe.to("cpu")
 pipe.safety_checker = None
 
-print("✅ Models loaded successfully!")
+print("✅ Models loaded!")
 
-# ====================== FUNCTIONS ======================
 def generate_story():
     moral = random.choice(["kindness", "honesty", "friendship", "courage", "sharing", "patience"])
     print(f"📖 Generating story about {moral.upper()}...")
 
-    prompt = f"""Create a beautiful Studio Ghibli style moral story for children (4-8 years) about {moral}.
-Return ONLY valid JSON array with exactly 8 scenes.
-Each scene must have: "scene_number", "visual_description" (start with "ghibli style,"), "narration_text" (max 25 words)."""
+    prompt = f"""Create a beautiful Studio Ghibli style moral story for children about {moral}.
+Return ONLY valid JSON with 8 scenes.
+Each scene: "scene_number", "visual_description" (start with "ghibli style,"), "narration_text" (max 25 words)."""
 
     response = story_generator(prompt, max_new_tokens=1500, temperature=0.85, do_sample=True)
     text = response[0]['generated_text']
@@ -57,8 +54,7 @@ Each scene must have: "scene_number", "visual_description" (start with "ghibli s
         end = text.rfind(']') + 1
         return json.loads(text[start:end]), moral
     except:
-        print("⚠️ Using fallback story")
-        return [{"scene_number": i+1, "visual_description": f"ghibli style, beautiful {moral} scene with cute animals", "narration_text": f"Once upon a time..."} for i in range(8)], moral
+        return [{"scene_number": i+1, "visual_description": f"ghibli style, beautiful {moral} scene", "narration_text": f"Scene {i+1}"} for i in range(8)], moral
 
 def generate_image(desc, num):
     print(f"🖼️  Generating Ghibli image {num}...")
@@ -79,6 +75,7 @@ def create_video(scenes, moral):
     clips = []
     subs = []
 
+    current_time = 0
     for scene in scenes:
         img_path = os.path.join(OUTPUT_FOLDER, f"scene_{scene['scene_number']:02d}.png")
         audio_path = os.path.join(OUTPUT_FOLDER, f"narration_{scene['scene_number']:02d}.mp3")
@@ -90,10 +87,21 @@ def create_video(scenes, moral):
         clip = image_clip.set_duration(duration).set_audio(audio_clip).crossfadein(0.5).crossfadeout(0.5)
         clips.append(clip)
 
-        subtitle = TextClip(scene["narration_text"], fontsize=52, color='white', stroke_color='black', 
-                           stroke_width=2, size=(1000, None), align='center')
-        subtitle = subtitle.set_position(('center', 'bottom')).set_start(sum(c.duration for c in clips)-duration).set_duration(duration)
+        # Subtitles using TextClip (now works with ImageMagick)
+        subtitle = TextClip(
+            scene["narration_text"],
+            fontsize=50,
+            color='white',
+            stroke_color='black',
+            stroke_width=2,
+            font='Arial-Bold',
+            size=(1000, None),
+            align='center'
+        )
+        subtitle = subtitle.set_position(('center', 'bottom')).set_start(current_time).set_duration(duration)
         subs.append(subtitle)
+
+        current_time += duration
 
     final_video = concatenate_videoclips(clips)
     final_video = CompositeVideoClip([final_video] + subs)
@@ -103,10 +111,8 @@ def create_video(scenes, moral):
 
     final_video.write_videofile(output_path, fps=24, codec="libx264", audio_codec="aac", preset="medium", threads=4)
 
-    print(f"\n✅ VIDEO GENERATED SUCCESSFULLY: {output_path}")
-    return output_path
+    print(f"\n✅ VIDEO GENERATED: {output_path}")
 
-# ====================== MAIN ======================
 if __name__ == "__main__":
     scenes, moral = generate_story()
 
@@ -118,4 +124,4 @@ if __name__ == "__main__":
 
     create_video(scenes, moral)
 
-    print("🎉 All done! Check the 'generated_ghibli_videos' folder for the video.")
+    print("🎉 All done!")
