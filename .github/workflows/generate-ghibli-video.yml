@@ -16,19 +16,25 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install System Dependencies (FFmpeg + ImageMagick)
+      - name: Install System Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
-            ffmpeg \
-            imagemagick \
-            libmagickwand-dev
+          sudo apt-get install -y ffmpeg imagemagick libmagickwand-dev
 
-      - name: Configure ImageMagick Policy (Allow Text Rendering)
+      - name: Fix ImageMagick Security Policy for MoviePy
         run: |
-          # Allow ImageMagick to read/write temporary files needed by MoviePy
-          sudo sed -i 's/<policy domain="coder" rights="none" pattern="PDF" \/>/<!-- <policy domain="coder" rights="none" pattern="PDF" \/> -->/' /etc/ImageMagick-6/policy.xml
-          echo "ImageMagick configured for MoviePy"
+          # Find the policy file
+          POLICY_FILE=$(find /etc/ImageMagick* -name policy.xml | head -n 1)
+          echo "Found policy file at: $POLICY_FILE"
+          
+          # Comment out the restrictive @* policy (this is the main fix)
+          sudo sed -i 's/<policy domain="path" rights="none" pattern="@\*"/<!-- <policy domain="path" rights="none" pattern="@*"/' "$POLICY_FILE"
+          sudo sed -i 's/<\/policy>/ --> <\/policy>/' "$POLICY_FILE"
+          
+          # Also allow PDF if needed (extra safety)
+          sudo sed -i 's/<policy domain="coder" rights="none" pattern="PDF" \/>/<!-- <policy domain="coder" rights="none" pattern="PDF" \/> -->/' "$POLICY_FILE"
+          
+          echo "ImageMagick policy updated successfully for TextClip"
 
       - name: Install Python Dependencies
         run: |
@@ -47,6 +53,3 @@ jobs:
           name: ghibli-moral-video
           path: generated_ghibli_videos/*.mp4
           retention-days: 7
-
-      - name: List Generated Files
-        run: ls -la generated_ghibli_videos/
