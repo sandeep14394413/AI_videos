@@ -1,42 +1,45 @@
-name: Generate Ghibli Moral Video
+name: Generate Ghibli Moral Story Video
 
 on:
-  workflow_dispatch:        # Manual trigger
+  workflow_dispatch:           # Manual trigger from GitHub UI
   schedule:
-    - cron: '0 3 * * *'     # Run daily at 3:00 AM UTC (optional)
+    - cron: '0 4 * * *'        # Optional: Run daily at 4 AM UTC
 
 jobs:
   generate-video:
-    runs-on: self-hosted     # Your Linux self-hosted runner
+    runs-on: ubuntu-latest     # GitHub Hosted Runner
 
     steps:
-      - name: Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Set up Python 3.11
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'     # More stable than 3.13 for these libraries
+          python-version: '3.11'
 
-      - name: Install system dependencies (Linux)
+      - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y ffmpeg espeak libsndfile1
+          sudo apt-get install -y ffmpeg
 
       - name: Install Python dependencies
         run: |
           pip install --upgrade pip
           pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
-          pip install diffusers transformers accelerate moviepy==1.0.3 pyttsx3 pillow
+          pip install diffusers transformers accelerate gtts moviepy==1.0.3 pillow
 
-      - name: Run Ghibli Video Generator
+      - name: Generate Ghibli Video
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: python ghibli_video_generator.py
 
-      - name: Upload generated video as artifact
+      - name: Upload Generated Video
         uses: actions/upload-artifact@v4
         with:
-          name: ghibli-video
+          name: ghibli-moral-video
           path: generated_ghibli_videos/*.mp4
           retention-days: 7
+
+      - name: Show output folder contents
+        run: ls -la generated_ghibli_videos/
