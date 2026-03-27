@@ -1,9 +1,7 @@
 name: Generate Ghibli Moral Story Video
 
 on:
-  workflow_dispatch:           # Allows manual trigger from GitHub UI
-  # schedule:
-  #   - cron: '0 4 * * *'      # Uncomment if you want daily automatic run
+  workflow_dispatch:
 
 jobs:
   generate-video:
@@ -18,17 +16,24 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install System Dependencies
+      - name: Install System Dependencies (FFmpeg + ImageMagick)
         run: |
           sudo apt-get update
-          sudo apt-get install -y ffmpeg
+          sudo apt-get install -y \
+            ffmpeg \
+            imagemagick \
+            libmagickwand-dev
+
+      - name: Configure ImageMagick Policy (Allow Text Rendering)
+        run: |
+          # Allow ImageMagick to read/write temporary files needed by MoviePy
+          sudo sed -i 's/<policy domain="coder" rights="none" pattern="PDF" \/>/<!-- <policy domain="coder" rights="none" pattern="PDF" \/> -->/' /etc/ImageMagick-6/policy.xml
+          echo "ImageMagick configured for MoviePy"
 
       - name: Install Python Dependencies
         run: |
           pip install --upgrade pip
-          # CPU version of PyTorch (GitHub runners don't have GPU by default)
           pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
-          # Main libraries
           pip install diffusers transformers accelerate gtts moviepy==1.0.3 pillow
 
       - name: Generate Ghibli Moral Video
@@ -44,6 +49,4 @@ jobs:
           retention-days: 7
 
       - name: List Generated Files
-        run: |
-          echo "Generated files:"
-          ls -la generated_ghibli_videos/
+        run: ls -la generated_ghibli_videos/
