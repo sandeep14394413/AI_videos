@@ -1,120 +1,49 @@
-import os
-import json
-import random
-from datetime import datetime
-from transformers import pipeline
-from diffusers import StableDiffusionPipeline
-import torch
-from gtts import gTTS
-from moviepy.editor import *
+name: Generate Ghibli Moral Story Video
 
-# ====================== CONFIG ======================
-OUTPUT_FOLDER = "generated_ghibli_videos"
-os.makedirs(OUTPUT_FOLDER, exist_ok=True)
+on:
+  workflow_dispatch:           # Allows manual trigger from GitHub UI
+  # schedule:
+  #   - cron: '0 4 * * *'      # Uncomment if you want daily automatic run
 
-HF_TOKEN = os.getenv("HF_TOKEN")
-if HF_TOKEN:
-    os.environ["HF_TOKEN"] = HF_TOKEN
-    print("✅ HF_TOKEN loaded successfully")
+jobs:
+  generate-video:
+    runs-on: ubuntu-latest
 
-print(f"Running on GitHub Hosted Runner | Device: {'cuda' if torch.cuda.is_available() else 'cpu'}")
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
-# ====================== LOAD MODELS ======================
-print("🚀 Loading AI models...")
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
 
-story_generator = pipeline(
-    "text-generation",
-    model="Qwen/Qwen2.5-1.5B-Instruct",
-    torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
-    device_map="auto",
-    trust_remote_code=True
-)
+      - name: Install System Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
 
-pipe = StableDiffusionPipeline.from_pretrained(
-    "nitrosocke/Ghibli-Diffusion",
-    torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
-    token=HF_TOKEN
-)
-pipe = pipe.to("cuda" if torch.cuda.is_available() else "cpu")
-pipe.safety_checker = None
+      - name: Install Python Dependencies
+        run: |
+          pip install --upgrade pip
+          # CPU version of PyTorch (GitHub runners don't have GPU by default)
+          pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+          # Main libraries
+          pip install diffusers transformers accelerate gtts moviepy==1.0.3 pillow
 
-print("✅ Models loaded!")
+      - name: Generate Ghibli Moral Video
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: python ghibli_video_generator.py
 
-# ====================== FUNCTIONS ======================
-def generate_story():
-    moral = random.choice(["kindness", "honesty", "friendship", "courage", "sharing", "patience"])
-    print(f"📖 Generating story about {moral.upper()}...")
+      - name: Upload Generated Video
+        uses: actions/upload-artifact@v4
+        with:
+          name: ghibli-moral-video
+          path: generated_ghibli_videos/*.mp4
+          retention-days: 7
 
-    prompt = f"""Create a beautiful Studio Ghibli style moral story for children (4-8 years) about {moral}.
-Return ONLY valid JSON array with exactly 8 scenes.
-Each scene must have: "scene_number", "visual_description" (start with "ghibli style,"), "narration_text" (max 25 words)."""
-
-    response = story_generator(prompt, max_new_tokens=1500, temperature=0.85, do_sample=True)
-    text = response[0]['generated_text']
-
-    try:
-        start = text.find('[')
-        end = text.rfind(']') + 1
-        return json.loads(text[start:end]), moral
-    except:
-        print("⚠️ Using fallback")
-        return [{"scene_number": i+1, "visual_description": f"ghibli style, beautiful {moral} scene with cute animals", "narration_text": f"Once upon a time..."} for i in range(8)], moral
-
-def generate_image(desc, num):
-    print(f"🖼️  Generating Ghibli image {num}...")
-    image = pipe(f"{desc}, masterpiece, best quality", num_inference_steps=28, guidance_scale=7.5).images[0]
-    path = os.path.join(OUTPUT_FOLDER, f"scene_{num:02d}.png")
-    image.save(path)
-    return path
-
-def text_to_speech(text, num):
-    print(f"🗣️  Generating narration {num}...")
-    tts = gTTS(text=text, lang='en', slow=False)
-    path = os.path.join(OUTPUT_FOLDER, f"narration_{num:02d}.mp3")
-    tts.save(path)
-    return path
-
-def create_video(scenes, moral):
-    print("🎬 Creating final video...")
-    clips = []
-    subs = []
-
-    for scene in scenes:
-        img_path = os.path.join(OUTPUT_FOLDER, f"scene_{scene['scene_number']:02d}.png")
-        audio_path = os.path.join(OUTPUT_FOLDER, f"narration_{scene['scene_number']:02d}.mp3")
-
-        image_clip = ImageClip(img_path)
-        audio_clip = AudioFileClip(audio_path)
-        duration = audio_clip.duration + 0.5
-
-        clip = image_clip.set_duration(duration).set_audio(audio_clip).crossfadein(0.5).crossfadeout(0.5)
-        clips.append(clip)
-
-        subtitle = TextClip(scene["narration_text"], fontsize=52, color='white', stroke_color='black', 
-                           stroke_width=2, size=(1000, None), align='center')
-        subtitle = subtitle.set_position(('center', 'bottom')).set_start(sum(c.duration for c in clips)-duration).set_duration(duration)
-        subs.append(subtitle)
-
-    final_video = concatenate_videoclips(clips)
-    final_video = CompositeVideoClip([final_video] + subs)
-
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-    output_path = os.path.join(OUTPUT_FOLDER, f"ghibli_{moral}_{timestamp}.mp4")
-
-    final_video.write_videofile(output_path, fps=24, codec="libx264", audio_codec="aac", preset="medium", threads=4)
-
-    print(f"\n✅ VIDEO GENERATED: {output_path}")
-
-# ====================== MAIN ======================
-if __name__ == "__main__":
-    scenes, moral = generate_story()
-
-    for scene in scenes:
-        generate_image(scene["visual_description"], scene["scene_number"])
-
-    for scene in scenes:
-        text_to_speech(scene["narration_text"], scene["scene_number"])
-
-    create_video(scenes, moral)
-
-    print("🎉 All done!")
+      - name: List Generated Files
+        run: |
+          echo "Generated files:"
+          ls -la generated_ghibli_videos/
