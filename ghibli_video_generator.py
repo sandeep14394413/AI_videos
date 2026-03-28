@@ -17,7 +17,7 @@ if HF_TOKEN:
     os.environ["HF_TOKEN"] = HF_TOKEN
     print("✅ HF_TOKEN loaded")
 
-print("🚀 Starting Ultra High-Quality Ghibli Video with Advanced Transitions...")
+print("🚀 Starting High-Quality Ghibli Video with Advanced Transitions...")
 
 # ====================== MODELS ======================
 story_generator = pipeline(
@@ -96,7 +96,7 @@ def create_video(scenes, moral):
         # Base clip
         clip = image_clip.set_duration(duration).set_audio(audio_clip)
 
-        # Advanced Cinematic Transitions (Fixed Resize)
+        # Advanced Transitions (Fixed - no deprecated ANTIALIAS)
         if i == 0:
             # First scene: Slow fade in + gentle zoom
             clip = clip.crossfadein(2.0)
